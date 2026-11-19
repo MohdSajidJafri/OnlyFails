@@ -407,30 +407,25 @@ class ContentSafetyAnalyzer:
             # ── 1. Local Regex Scanner (Fast pass) ────────────────────────────────
             local_score, local_cats, local_reason = self.run_local_scan(full_text)
             
-            # ── 2. LLM Contextual Safety Scanner ──────────────────────────────────
-            risk_score = "Safe"
-            categories_detected = []
-            reason = ""
+            # ── 2. LLM Contextual Safety Scanner (Optional if API keys provided) ──
+            risk_score = local_score
+            categories_detected = local_cats
+            reason = local_reason
             llm_success = False
 
-            try:
-                risk_score, categories_detected, reason = self.run_llm_scan(full_text, image_path)
-                llm_success = True
-                logger.info(f"LLM safety check succeeded. Risk: {risk_score}, Categories: {categories_detected}")
-            except Exception as e:
-                logger.error(f"Contextual LLM safety scan error: {e}")
-                if config.SAFETY_MODE == "strict":
-                    # Strict mode is fail-safe, default to Reject on error
-                    risk_score = "Reject"
-                    categories_detected = ["llm_api_failure"]
-                    reason = f"Strict mode fail-safe: Contextual safety check API failed/timed out. Error: {str(e)}"
-                    logger.warning("Failing safe: LLM check failed in strict safety mode. Rejecting content.")
-                else:
-                    # Lenient or Standard: fallback to local regex scan results
+            has_llm = bool(getattr(config, "GROQ_API_KEY", "") or getattr(config, "GEMINI_API_KEY", ""))
+            if has_llm:
+                try:
+                    risk_score, categories_detected, reason = self.run_llm_scan(full_text, image_path)
+                    llm_success = True
+                    logger.info(f"LLM safety check succeeded. Risk: {risk_score}, Categories: {categories_detected}")
+                except Exception as e:
+                    logger.warning(f"Contextual LLM safety scan error ({e}). Falling back to local rules.")
                     risk_score = local_score
                     categories_detected = local_cats
-                    reason = f"LLM failed, fell back to local scan. {local_reason}"
-                    logger.info("Fell back to local safety scan because LLM check failed.")
+                    reason = f"LLM check unavailable, fell back to local scan. {local_reason}"
+            else:
+                reason = local_reason or "Verified safe via policy regex scanner."
 
             # If LLM check succeeded, but local scan flagged a critical term, merge them for extra protection
             if llm_success and local_score == "Reject":

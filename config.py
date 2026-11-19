@@ -1,6 +1,6 @@
 """
-Central configuration for the Reddit to Shorts Automation Pipeline.
-Reads from .env file, provides comprehensive default values.
+Central configuration for the Reddit to Shorts Automation Pipeline (OnlyFails).
+Reads from .env file, provides clean and direct defaults for 60 FPS video curation.
 """
 from __future__ import annotations
 
@@ -37,20 +37,18 @@ def _env_bool(key: str, default: bool = False) -> bool:
 
 # ── Directories ──────────────────────────────────────────────
 DATA_DIR_NAME = _env("DATA_DIR_NAME", "data")
-RAW_DIR = ROOT / DATA_DIR_NAME / "raw"                 # Raw background videos
-CLIPS_DIR = ROOT / DATA_DIR_NAME / "clips"             # Sliced background clips
-OUTPUT_DIR = ROOT / DATA_DIR_NAME / "output"           # Rendered assets/short
+RAW_DIR = ROOT / DATA_DIR_NAME / "raw"                 # Downloaded temporary video memes
+OUTPUT_DIR = ROOT / DATA_DIR_NAME / "output"           # Rendered assets/shorts
 CACHE_DIR = ROOT / DATA_DIR_NAME / "cache"             # Session tokens/archives
-DB_DIR = ROOT / DATA_DIR_NAME / "database"             # Processing history, database files
-ASSETS_DIR = ROOT / DATA_DIR_NAME / "assets"           # Fallback meme audios and visual assets
+DB_DIR = ROOT / DATA_DIR_NAME / "database"             # Deduplication databases
+ASSETS_DIR = ROOT / DATA_DIR_NAME / "assets"           # Channel logo / profile images
 
-for d in [RAW_DIR, CLIPS_DIR, OUTPUT_DIR, CACHE_DIR, DB_DIR, ASSETS_DIR]:
+for d in [RAW_DIR, OUTPUT_DIR, CACHE_DIR, DB_DIR, ASSETS_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
 # Database Files
 HISTORY_FILE = DB_DIR / "processed_reddit_posts.json"
 UPLOAD_HISTORY_FILE = DB_DIR / "upload_history.json"
-BACKGROUND_HISTORY_FILE = DB_DIR / "used_backgrounds.json"
 
 # ── Reddit Ingestion Settings ────────────────────────────────
 SUBREDDITS = [
@@ -67,7 +65,6 @@ SUBREDDIT_WEIGHTS = {}
 for s in SUBREDDITS:
     SUBREDDIT_WEIGHTS[s] = 1.0
 
-# High priority subreddits get configured weights
 _preferred_weights = {
     "Whatcouldgowrong": 5.0,
     "Unexpected": 5.0,
@@ -87,115 +84,63 @@ REDDIT_FILTER_NSFW = _env_bool("REDDIT_FILTER_NSFW", True)
 REDDIT_FILTER_DELETED = _env_bool("REDDIT_FILTER_DELETED", True)
 REDDIT_FILTER_PINNED = _env_bool("REDDIT_FILTER_PINNED", True)
 REDDIT_FILTER_CROSSPOSTS = _env_bool("REDDIT_FILTER_CROSSPOSTS", True)
-REDDIT_POST_MIN_LEN = int(_env("REDDIT_POST_MIN_LEN", "50"))
-REDDIT_POST_MAX_LEN = int(_env("REDDIT_POST_MAX_LEN", "1500"))
 ONLY_VIDEOS = _env_bool("ONLY_VIDEOS", True)
+ONLY_REDDIT_HOSTED = _env_bool("ONLY_REDDIT_HOSTED", True)
 
-# Optional PRAW Reddit Credentials (if empty, uses anonymous JSON feeds)
+# Optional Reddit API Credentials (uses anonymous feeds / Redlib rotation by default)
 REDDIT_CLIENT_ID = _env("REDDIT_CLIENT_ID", "")
 REDDIT_CLIENT_SECRET = _env("REDDIT_CLIENT_SECRET", "")
-REDDIT_USER_AGENT = _env("REDDIT_USER_AGENT", "RedditShortsBot/1.0")
+REDDIT_USER_AGENT = _env("REDDIT_USER_AGENT", "OnlyFailsBot/1.0")
 
-# RSS Ingestion Settings (RSS.app)
-RSS_ENABLED = _env_bool("RSS_ENABLED", False)
-RSS_FEEDS = [
-    f.strip()
-    for f in _env("RSS_FEEDS", "").replace("\n", ",").split(",")
-    if f.strip()
-]
-
-# ── AI Narration Settings ────────────────────────────────────
-NARRATION_MODE = _env("NARRATION_MODE", "commentary")  # natural, commentary
-LLM_PROVIDER = _env("LLM_PROVIDER", "")
-if not LLM_PROVIDER:
-    if os.environ.get("GEMINI_API_KEY"):
-        LLM_PROVIDER = "gemini"
-    else:
-        LLM_PROVIDER = "groq"
-LLM_MODEL = _env("LLM_MODEL", "")  # Autoresolved below if empty
-
-# Provider Keys & Custom API Base URLs
+# ── Optional AI Curation (Groq) ──────────────────────────────
 GROQ_API_KEY = _env("GROQ_API_KEY", "")
-DEEPSEEK_API_KEY = _env("DEEPSEEK_API_KEY", "")
 GEMINI_API_KEY = _env("GEMINI_API_KEY", "")
-OPENAI_API_KEY = _env("OPENAI_API_KEY", "")
-OPENROUTER_API_KEY = _env("OPENROUTER_API_KEY", "")
-OLLAMA_API_URL = _env("OLLAMA_API_URL", "http://localhost:11434/v1")
+LLM_MODEL = _env("LLM_MODEL", "qwen/qwen3.8-27b")
+LLM_PROVIDER = _env("LLM_PROVIDER", "groq")
 
-# Resolve default model names if none is provided
-if not LLM_MODEL:
-    if LLM_PROVIDER == "groq":
-        LLM_MODEL = "qwen/qwen3.8-27b"
-    elif LLM_PROVIDER == "deepseek":
-        LLM_MODEL = "deepseek-chat"
-    elif LLM_PROVIDER == "gemini":
-        LLM_MODEL = "gemini-3.8-flash"
-    elif LLM_PROVIDER == "openai":
-        LLM_MODEL = "gpt-4o-mini"
-    elif LLM_PROVIDER == "openrouter":
-        LLM_MODEL = "meta-llama/llama-3.1-8b-instruct:free"
-    elif LLM_PROVIDER == "ollama":
-        LLM_MODEL = "llama3"
-    else:
-        LLM_MODEL = "llama-3.3-70b-versatile"
-
-# ── Voice / TTS Settings ─────────────────────────────────────
-TTS_PROVIDER = _env("TTS_PROVIDER", "edge")  # edge, elevenlabs, openai
-TTS_VOICE = _env("TTS_VOICE", "")  # Autoresolved based on provider below if empty
-
-ELEVENLABS_API_KEY = _env("ELEVENLABS_API_KEY", "")
-ELEVENLABS_VOICE_ID = _env("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")  # Rachel
-
-OPENAI_TTS_MODEL = _env("OPENAI_TTS_MODEL", "tts-1")
-
-# Resolve default voice identifiers
-if not TTS_VOICE:
-    if TTS_PROVIDER == "edge":
-        TTS_VOICE = "en-US-AndrewNeural"
-    elif TTS_PROVIDER == "openai":
-        TTS_VOICE = "onyx"  # alloy, echo, fable, onyx, nova, shimmer
-    elif TTS_PROVIDER == "elevenlabs":
-        TTS_VOICE = ELEVENLABS_VOICE_ID
-    else:
-        TTS_VOICE = "en-US-AndrewNeural"
-
-# ── Background Video Settings ────────────────────────────────
-BACKGROUND_PROVIDERS = [
-    p.strip()
-    for p in _env(
-        "BACKGROUND_PROVIDERS",
-        "minecraft parkour gameplay 1080p, subway surfers gameplay 1080p, satisfying videos 1080p",
-    ).split(",")
-    if p.strip()
-]
-LOCAL_BACKGROUNDS_DIR = ROOT / _env("LOCAL_BACKGROUNDS_DIR", f"{DATA_DIR_NAME}/raw")
-YTDL_MAX_DOWNLOADS = int(_env("YTDL_MAX_DOWNLOADS", "2"))
-YTDL_FORMAT = _env(
-    "YTDL_FORMAT", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]"
-)
-
-# ── Render Settings ──────────────────────────────────────────
+# ── Video Render Settings ────────────────────────────────────
 RENDER_FPS = int(_env("RENDER_FPS", "60"))
 RENDER_WIDTH = 1080
 RENDER_HEIGHT = 1920
-CAPTION_STYLE = _env("CAPTION_STYLE", "chaotic")  # chaotic, meme, story, npc
 CAPTION_FONT = _env("CAPTION_FONT", "Impact")
-
-OVERLAY_REDDIT_SCREENSHOT = _env_bool("OVERLAY_REDDIT_SCREENSHOT", True)
+OVERLAY_PROGRESS_BAR = _env_bool("OVERLAY_PROGRESS_BAR", False)
+OVERLAY_BACKGROUND_BLUR = _env_bool("OVERLAY_BACKGROUND_BLUR", False)
 OVERLAY_PROFILE_ICON = _env_bool("OVERLAY_PROFILE_ICON", True)
 OVERLAY_SUBREDDIT_TAG = _env_bool("OVERLAY_SUBREDDIT_TAG", True)
-OVERLAY_PROGRESS_BAR = _env_bool("OVERLAY_PROGRESS_BAR", False)
-OVERLAY_BACKGROUND_BLUR = _env_bool("OVERLAY_BACKGROUND_BLUR", True)
+
+# ── Curator Mode Video Settings ──────────────────────────────
+CURATOR_MODE = _env_bool("CURATOR_MODE", True)
+MAX_MEME_DURATION = float(_env("MAX_MEME_DURATION", "59.0"))
+MIN_MEME_DURATION = float(_env("MIN_MEME_DURATION", "3.0"))
+REJECT_WATERMARKS = _env_bool("REJECT_WATERMARKS", False)
+BRANDING_TEXT = _env("BRANDING_TEXT", "")
+ADD_INTRO_OUTRO = _env_bool("ADD_INTRO_OUTRO", False)
+FIT_CLIP_WIDTH = _env_bool("FIT_CLIP_WIDTH", True)
+
+# ── Creator Card Branding (OnlyFails) ─────────────────────────
+PROFILE_PICTURE_PATH = ROOT / _env("PROFILE_PICTURE_PATH", f"{DATA_DIR_NAME}/assets/OnlyFails Cyan Wing Logo.png")
+CHANNEL_DISPLAY_NAME = _env("CHANNEL_DISPLAY_NAME", "OnlyFails")
+CHANNEL_HANDLE = _env("CHANNEL_HANDLE", "@onlyfail.s")
+BADGE_COLOR = _env("BADGE_COLOR", "#1DA1F2")           # Blue verified tick circle
+BACKGROUND_COLOR = _env("BACKGROUND_COLOR", "#FFFFFF")  # Pure white background canvas
+
+# ── Content Safety Settings ──────────────────────────────────
+ENABLE_CONTENT_SAFETY = _env_bool("ENABLE_CONTENT_SAFETY", True)
+SAFETY_MODE = _env("SAFETY_MODE", "standard").lower().strip()  # standard, strict, lenient
+MAX_ALLOWED_RISK = _env("MAX_ALLOWED_RISK", "low").lower().strip()
 
 # ── YouTube Upload Settings ──────────────────────────────────
 YT_CLIENT_ID = _env("YT_CLIENT_ID", _env("YT_MEME_CLIENT_ID"))
 YT_CLIENT_SECRET = _env("YT_CLIENT_SECRET_VALUE", _env("YT_MEME_CLIENT_SECRET_VALUE"))
 YT_REFRESH_TOKEN = _env("YT_REFRESH_TOKEN", _env("YT_MEME_REFRESH_TOKEN"))
 YT_PRIVACY = _env("YOUTUBE_PRIVACY", "public")
+YOUTUBE_CATEGORY_ID = _env("YOUTUBE_CATEGORY_ID", "24")  # 24 = Entertainment
 
-# Engagement Metadata Customizations
 METADATA_MENTIONS = _env("METADATA_MENTIONS", "")
-METADATA_TRENDING_TAGS = _env("METADATA_TRENDING_TAGS", "whatcouldgowrong, wcgw, unexpected, instantregret, instantkarma, fail, fails, viral, shorts")
+METADATA_TRENDING_TAGS = _env(
+    "METADATA_TRENDING_TAGS",
+    "whatcouldgowrong, wcgw, unexpected, instantregret, instantkarma, fail, fails, viral, shorts",
+)
 METADATA_DISCLAIMER = _env("METADATA_DISCLAIMER", "Curated funny fail & unexpected clips from Reddit.")
 
 # ── Scheduler & Limits ───────────────────────────────────────
@@ -205,66 +150,3 @@ UPLOAD_SCHEDULE_TIMES = [
     for t in _env("UPLOAD_SCHEDULE_TIMES", "09:00, 13:00, 17:00, 21:00").split(",")
     if t.strip()
 ]
-
-
-# ── Content Safety Settings ──────────────────────────────────
-ENABLE_CONTENT_SAFETY = _env_bool("ENABLE_CONTENT_SAFETY", True)
-SAFETY_MODE = _env("SAFETY_MODE", "standard").lower().strip()  # strict, standard, lenient
-MAX_ALLOWED_RISK = _env("MAX_ALLOWED_RISK", "low").lower().strip()  # safe, low, medium, high
-REJECT_FEMALE_HUMANS = _env_bool("REJECT_FEMALE_HUMANS", False)
-ENABLE_MEME_SUITABILITY = _env_bool("ENABLE_MEME_SUITABILITY", False)
-
-CAT_REACTION_FOLDER = ROOT / _env("CAT_REACTION_FOLDER", f"{DATA_DIR_NAME}/assets/cat_reactions")
-CAT_LAYOUT_HEIGHT = float(_env("CAT_LAYOUT_HEIGHT", "0.25"))
-MEME_LAYOUT_HEIGHT = float(_env("MEME_LAYOUT_HEIGHT", "0.75"))
-ENABLE_CAT_REACTIONS = _env_bool("ENABLE_CAT_REACTIONS", False)
-CAT_SELECTION_MODE = _env("CAT_SELECTION_MODE", "random")
-CAT_AVOID_REPEAT = _env_bool("CAT_AVOID_REPEAT", True)
-CAT_HISTORY_FILE = CACHE_DIR / "cat_history.json"
-
-# ── Greenscreen Compilation Settings ────────────────────────────────────────
-# Name of the long greenscreen compilation inside CAT_REACTION_FOLDER.
-# The bot will never treat this file as a normal clip — it uses random segments.
-GREENSCREEN_FILE = ROOT / _env(
-    "GREENSCREEN_FILE",
-    f"{DATA_DIR_NAME}/assets/cat_reactions/Long green screen video.mp4"
-)
-
-# Whether to enable greenscreen segment extraction at all
-USE_GREENSCREEN = _env_bool("USE_GREENSCREEN", False)
-
-# Probability (0.0 – 1.0) of choosing the greenscreen compilation instead of
-# a normal clip when both are available
-GREENSCREEN_PROBABILITY = float(_env("GREENSCREEN_PROBABILITY", "0.40"))
-
-# Length of the randomly extracted segment (seconds)
-GREENSCREEN_SEGMENT_MIN = float(_env("GREENSCREEN_SEGMENT_MIN", "4.5"))
-GREENSCREEN_SEGMENT_MAX = float(_env("GREENSCREEN_SEGMENT_MAX", "4.5"))
-
-# Chromakey parameters — tune these for the specific green used in the compilation
-GREENSCREEN_CHROMA_COLOR = _env("GREENSCREEN_CHROMA_COLOR", "0x00B140")  # YouTube green
-GREENSCREEN_CHROMA_SIMILARITY = float(_env("GREENSCREEN_CHROMA_SIMILARITY", "0.12"))
-GREENSCREEN_CHROMA_BLEND = float(_env("GREENSCREEN_CHROMA_BLEND", "0.08"))
-
-# Keyed greenscreen overlay canvas size constraint (prevents the animal reaction from looking tiny)
-GREENSCREEN_MAX_WIDTH = int(_env("GREENSCREEN_MAX_WIDTH", "800"))
-GREENSCREEN_MAX_HEIGHT = int(_env("GREENSCREEN_MAX_HEIGHT", "800"))
-
-# ── Curator Mode Settings ───────────────────────────────────────────
-CURATOR_MODE = _env_bool("CURATOR_MODE", True)
-MAX_MEME_DURATION = float(_env("MAX_MEME_DURATION", "59.0"))
-MIN_MEME_DURATION = float(_env("MIN_MEME_DURATION", "3.0"))
-ONLY_REDDIT_HOSTED = _env_bool("ONLY_REDDIT_HOSTED", True)
-REJECT_WATERMARKS = _env_bool("REJECT_WATERMARKS", False)
-BRANDING_TEXT = _env("BRANDING_TEXT", "")
-ADD_INTRO_OUTRO = _env_bool("ADD_INTRO_OUTRO", False)
-CAPTION_ON_TOP = _env_bool("CAPTION_ON_TOP", True)
-BOTTOM_CALLOUT_ENABLED = _env_bool("BOTTOM_CALLOUT_ENABLED", False)
-
-# ── Creator Card & Visual Style Settings ─────────────────────────────
-PROFILE_PICTURE_PATH = ROOT / _env("PROFILE_PICTURE_PATH", f"{DATA_DIR_NAME}/assets/OnlyFails Cyan Wing Logo.png")
-CHANNEL_DISPLAY_NAME = _env("CHANNEL_DISPLAY_NAME", "OnlyFails")
-CHANNEL_HANDLE = _env("CHANNEL_HANDLE", "@onlyfail.s")
-BADGE_COLOR = _env("BADGE_COLOR", "#1DA1F2")  # Blue verified tick circle
-BACKGROUND_COLOR = _env("BACKGROUND_COLOR", "#FFFFFF")  # Pure white background
-FIT_CLIP_WIDTH = _env_bool("FIT_CLIP_WIDTH", True)

@@ -806,6 +806,10 @@ def download_meme_video(url: str, post_id: Optional[str] = None) -> Path:
             vid_match = re.search(r'/vid/([^/]+)', url)
             if vid_match:
                 video_id = vid_match.group(1)
+        elif "/packaged/" in url:
+            vid_match = re.search(r'/packaged/([^/]+)', url)
+            if vid_match:
+                video_id = vid_match.group(1)
         elif "v.redd.it/" in url:
             vid_match = re.search(r'v\.redd\.it/([^/?#]+)', url)
             if vid_match:
