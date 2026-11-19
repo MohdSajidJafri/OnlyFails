@@ -64,13 +64,12 @@ The pipeline operates in **Curator Mode** (`CURATOR_MODE=True`), designed after 
 ## 🚀 Key Features
 
 * **Curator Mode (Default)**: Automatically curates funny fails and unexpected video clips, pairs them with punchy creator captions, and packages them into clean 9:16 60 FPS vertical video.
-* **Fast & Resilient Ingestion**: Uses `curl-cffi` browser TLS impersonation, automatic Redlib instance rotation, and anonymous feeds. No Reddit developer credentials required.
-* **Multi-Stage Content Safety Guard**:
-  1. *Ingestion*: Filters NSFW, pinned posts, prohibited keywords (14 categories), low scores, and duplicates.
-  2. *Scripting / Metadata*: Validates titles, descriptions, and hashtags.
-  3. *Pre-Rendering*: Sanity check on video duration, format, and dimensions.
-  4. *Pre-Upload*: Final advertiser-friendly policy verification before transmitting to YouTube.
-* **Resumable YouTube OAuth2 Publishing**: Seamless chunked resumable upload script with automatic categorization, tags, and disclaimer inclusion.
+* **Lean, Zero-Bloat Architecture**: Completely decluttered of unused TTS, synthetic voiceovers, and gameplay backgrounds. Operates on just 9 core Python dependencies for near-instant GitHub Actions runner setup.
+* **Fast & Resilient Ingestion**: Uses `curl-cffi` browser TLS impersonation, automatic Redlib proxy rotation, and direct Reddit CDN (Fastly) stream downloads. No Reddit developer credentials required.
+* **2-Stage Advertiser Safety Guard**:
+  1. *After Ingestion*: Scans post titles, selftext, and video frames using 14 comprehensive safety categories (violence, hate, harassment, self-harm, adult content, etc.) via local rule-based regex, with zero error spam if LLM keys are absent.
+  2. *Before Upload*: Final advertiser-friendly policy validation on YouTube title, description, and tags before publishing.
+* **Resumable YouTube OAuth2 Publishing**: Seamless chunked resumable upload script with automatic categorization (Entertainment), tags, and disclaimer inclusion.
 * **Smart Scheduler & De-duplication**:
   * Prevents duplicate video uploads via `data/database/processed_reddit_posts.json`.
   * Enforces daily video limits (`MAX_VIDEOS_PER_DAY=4`) and designated upload hours (`09:00, 13:00, 17:00, 21:00 IST`).
@@ -222,8 +221,8 @@ This repository includes a streamlined GitHub Actions workflow ([.github/workflo
    * `YT_CLIENT_ID`
    * `YT_CLIENT_SECRET_VALUE`
    * `YT_REFRESH_TOKEN`
-   * `GROQ_API_KEY` *(Optional)*
-   * `GEMINI_API_KEY` *(Optional)*
+   * `GROQ_API_KEY` *(Optional: AI caption generation)*
+   * `GEMINI_API_KEY` *(Optional: Multimodal vision safety scan)*
 3. **Grant Write Permissions for Database Persistence**:
    * Go to **Settings** > **Actions** > **General**.
    * Under **Workflow permissions**, select **Read and write permissions**.
@@ -238,7 +237,7 @@ This repository includes a streamlined GitHub Actions workflow ([.github/workflo
 OnlyFails/
 ├── .github/
 │   └── workflows/
-│       └── daily_shorts.yml          # Automated 2x/day GitHub Actions runner
+│       └── daily_shorts.yml          # Automated 4x/day GitHub Actions runner
 ├── data/
 │   ├── assets/                       # Channel profile picture / logo
 │   │   └── OnlyFails Cyan Wing Logo.png
@@ -251,15 +250,15 @@ OnlyFails/
 │   └── raw/                          # Downloaded temporary video memes
 ├── src/
 │   ├── logger.py                     # Unified console & file logging
-│   ├── narration/                    # LLM caption generation (Groq/Gemini/OpenAI)
-│   ├── reddit/                       # Reddit crawling, Redlib proxy rotation, & downloaders
-│   ├── safety/                       # 4-stage safety analyzer & policy filters
-│   ├── upload/                       # YouTube Data API v3 uploader & scheduler
-│   └── video/                        # FFmpeg rendering engine & Twitter/X card generator
+│   ├── narration/                    # Punchy viral caption generator (local heuristics + optional Groq)
+│   ├── reddit/                       # Reddit crawling, Redlib proxy rotation, & direct CDN video muxing
+│   ├── safety/                       # 2-stage policy & keyword safety analyzer (14 categories)
+│   ├── upload/                       # YouTube Data API v3 resumable uploader & scheduler
+│   └── video/                        # High-performance 60 FPS FFmpeg rendering engine & creator card generator
 ├── .env.example                      # Template for environment configuration
 ├── config.py                         # Centralized configuration reader
 ├── get_refresh_token.py              # OAuth2 helper to generate YouTube refresh token
-├── requirements.txt                  # Python dependencies
+├── requirements.txt                  # Slim 9-package Python dependencies
 └── run_pipeline.py                   # Master pipeline orchestrator
 ```
 
